@@ -1,0 +1,135 @@
+.titlebar {
+  height: 40px;
+  background: linear-gradient(180deg, var(--surface-dark) 0%, var(--surface-darker) 100%);
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 16px;
+  user-select: none;
+  -webkit-user-select: none;
+  cursor: default;
+  position: relative;
+  z-index: 100;
+}
+
+.titlebar-content {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  height: 100%;
+  cursor: grab;
+}
+
+.titlebar-content:active {
+  cursor: grabbing;
+}
+
+.titlebar-icon {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--primary);
+}
+
+.titlebar-icon .material-icon {
+  font-size: 20px;
+}
+
+.titlebar-text {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  letter-spacing: 0.3px;
+}
+
+.titlebar-controls {
+  display: flex;
+  align-items: center;
+  height: 100%;
+  gap: 8px;
+}
+
+/* macOS风格控制按钮 */
+.titlebar-controls.macos {
+  gap: 10px;
+}
+
+.titlebar-btn {
+  width: 46px;
+  height: 100%;
+  background: transparent;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+/* macOS风格圆形按钮 */
+.titlebar-controls.macos .titlebar-btn {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  padding: 0;
+  position: relative;
+}
+
+.titlebar-controls.macos .titlebar-btn.close {
+  background: #ff5f57;
+  border: 1px solid #e0443e;
+}
+
+.titlebar-controls.macos .titlebar-btn.minimize {
+  background: #febc2e;
+  border: 1px solid #d89e24;
+}
+
+.titlebar-controls.macos .titlebar-btn.maximize {
+  background: #28c840;
+  border: 1px solid #1ea82d;
+}
+
+.titlebar-controls.macos .titlebar-btn:hover {
+  filter: brightness(0.9);
+}
+
+.titlebar-controls.macos .macos-icon {
+  font-size: 10px;
+  font-weight: bold;
+  color: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.titlebar-controls.macos:hover .macos-icon {
+  opacity: 1;
+}
+
+.titlebar-spacer {
+  width: 70px;
+}
+
+.titlebar-btn:hover {
+  background: rgba(128, 128, 128, 0.1);
+  color: var(--text-primary);
+}
+
+.titlebar-btn.close:hover {
+  background: var(--error);
+  color: white;
+}
+
+.titlebar-btn .material-icon {
+  font-size: 18px;
+}
+
+/* 最大化/还原按钮的图标调整 */
+.titlebar-btn.maximize .material-icon {
+  font-size: 16px;
+}

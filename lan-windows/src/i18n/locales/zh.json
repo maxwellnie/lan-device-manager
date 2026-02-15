@@ -1,0 +1,173 @@
+{
+  "app": {
+    "title": "局域网设备管理器 - Windows被控端",
+    "version": "客户端版本 {{version}} (稳定版)"
+  },
+  "common": {
+    "save": "保存",
+    "cancel": "取消",
+    "close": "关闭",
+    "refresh": "刷新",
+    "clear": "清除",
+    "settings": "设置",
+    "loading": "加载中...",
+    "success": "成功",
+    "error": "错误",
+    "confirm": "确认",
+    "delete": "删除",
+    "edit": "编辑",
+    "add": "添加",
+    "search": "搜索",
+    "online": "在线",
+    "offline": "离线"
+  },
+  "sidebar": {
+    "deviceInfo": "设备信息",
+    "operatingSystem": "操作系统",
+    "architecture": "系统架构",
+    "ipAddress": "IP 地址",
+    "port": "端口",
+    "accessPassword": "访问密码",
+    "passwordSet": "已设置密码",
+    "passwordNotSet": "未设置密码",
+    "passwordNotSetShort": "未设置",
+    "serverControl": "服务器控制",
+    "startServer": "启动服务器",
+    "stopServer": "停止服务器",
+    "starting": "启动中...",
+    "stopping": "停止中...",
+    "theme": "主题",
+    "darkTheme": "深色主题",
+    "lightTheme": "浅色主题",
+    "autoTheme": "自动主题",
+    "glassTheme": "毛玻璃主题"
+  },
+  "logs": {
+    "title": "实时日志",
+    "searchPlaceholder": "搜索日志...",
+    "allLevels": "所有级别",
+    "info": "信息",
+    "warning": "警告",
+    "error": "错误",
+    "success": "成功",
+    "system": "系统",
+    "noLogs": "暂无日志",
+    "liveMonitoring": "实时监控",
+    "entries": "条记录",
+    "lastUpdated": "最后更新: 刚刚"
+  },
+  "settings": {
+    "title": "设置",
+    "appearance": {
+      "title": "外观",
+      "theme": "主题",
+      "language": "语言",
+      "themeDescription": "选择您喜欢的颜色主题"
+    },
+    "server": {
+      "title": "服务器设置",
+      "apiPort": "API 服务器端口",
+      "apiPortDescription": "API 服务器的端口号 (1024-65535)",
+      "autoStart": "应用启动时自动启动 API 服务器",
+      "startOnBoot": "开机自动启动应用"
+    },
+    "logs": {
+      "title": "日志设置",
+      "bufferSize": "日志缓冲区大小",
+      "bufferSizeDescription": "内存中保留的日志条目数量 (10-1000)",
+      "enableLogFile": "启用日志文件持久化",
+      "maxSize": "日志文件最大大小 (MB)",
+      "maxSizeDescription": "日志轮转前的最大大小 (1-100 MB)",
+      "openLocation": "打开位置",
+      "logPath": "日志保存在 AppData/Roaming/LanDeviceManager/logs"
+    },
+    "commands": {
+      "title": "命令白名单",
+      "description": "选择允许通过 API 执行的命令",
+      "builtIn": "内置命令",
+      "custom": "自定义命令",
+      "addCustom": "添加自定义命令",
+      "addDescription": "向白名单添加新命令 (例如: ipconfig, ping, netstat)",
+      "commandName": "命令名称",
+      "addToWhitelist": "添加到白名单",
+      "customCommandNote": "添加的命令默认启用。取消勾选可禁用。"
+    },
+    "password": {
+      "title": "密码设置",
+      "newPassword": "新密码",
+      "confirmPassword": "确认密码",
+      "passwordPlaceholder": "输入新密码 (至少8个字符)",
+      "confirmPlaceholder": "确认新密码",
+      "updatePassword": "更新密码",
+      "setPassword": "设置密码",
+      "removePassword": "移除密码"
+    },
+    "ipBlacklist": {
+      "title": "IP 黑名单",
+      "description": "阻止特定 IP 地址访问服务器",
+      "enable": "启用 IP 黑名单",
+      "addIp": "添加 IP 地址",
+      "ipPlaceholder": "例如：192.168.1.100 或 192.168.1.*",
+      "ipHint": "使用 * 作为通配符（例如：192.168.1.* 阻止整个子网）",
+      "blockedIps": "已阻止的 IP 地址",
+      "invalidIp": "无效的 IP 地址格式",
+      "alreadyExists": "该 IP 已在黑名单中"
+    },
+    "saveSuccess": "设置保存成功",
+    "saveError": "设置保存失败",
+    "portChanged": "端口已更改，正在重启服务器...",
+    "passwordMinLength": "密码至少需要8个字符",
+    "passwordMismatch": "两次输入的密码不一致",
+    "passwordUpdateSuccess": "密码更新成功",
+    "passwordUpdateFailed": "密码更新失败",
+    "passwordClearSuccess": "密码已清除",
+    "passwordClearFailed": "密码清除失败",
+    "removeCommand": "移除命令"
+  },
+  "titlebar": {
+    "close": "关闭",
+    "minimize": "最小化",
+    "maximize": "最大化",
+    "restore": "还原"
+  },
+  "tray": {
+    "show": "显示",
+    "hide": "隐藏",
+    "startServer": "启动服务器",
+    "stopServer": "停止服务器",
+    "quit": "退出"
+  },
+  "toast": {
+    "serverStarted": "服务器启动成功",
+    "serverStopped": "服务器停止成功",
+    "logsCleared": "日志已清除",
+    "passwordUpdated": "密码更新成功",
+    "passwordCleared": "密码已清除",
+    "customCommandAdded": "自定义命令已添加",
+    "customCommandRemoved": "自定义命令已移除",
+    "ipAdded": "IP 地址已添加到黑名单",
+    "ipRemoved": "IP 地址已从黑名单移除",
+    "configNotLoaded": "配置尚未加载",
+    "serverStartFailed": "启动服务器失败",
+    "serverStopFailed": "停止服务器失败",
+    "logsClearFailed": "清除日志失败"
+  },
+  "commands": {
+    "shutdown": "关机",
+    "restart": "重启",
+    "sleep": "睡眠",
+    "lock": "锁屏",
+    "systeminfo": "系统信息",
+    "tasklist": "任务列表",
+    "wmic": "WMIC",
+    "custom": "自定义命令",
+    "shutdownDesc": "关闭计算机",
+    "restartDesc": "重启计算机",
+    "sleepDesc": "使计算机进入睡眠状态",
+    "lockDesc": "锁定工作站",
+    "systeminfoDesc": "获取系统信息",
+    "tasklistDesc": "列出正在运行的进程",
+    "wmicDesc": "Windows管理规范",
+    "customDesc": "允许执行自定义系统命令（如ipconfig、ping）"
+  }
+}

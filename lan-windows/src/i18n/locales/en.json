@@ -1,0 +1,173 @@
+{
+  "app": {
+    "title": "Lan Device Manager - Windows Slave End",
+    "version": "Client Version {{version}} (Stable)"
+  },
+  "common": {
+    "save": "Save",
+    "cancel": "Cancel",
+    "close": "Close",
+    "refresh": "Refresh",
+    "clear": "Clear",
+    "settings": "Settings",
+    "loading": "Loading...",
+    "success": "Success",
+    "error": "Error",
+    "confirm": "Confirm",
+    "delete": "Delete",
+    "edit": "Edit",
+    "add": "Add",
+    "search": "Search",
+    "online": "Online",
+    "offline": "Offline"
+  },
+  "sidebar": {
+    "deviceInfo": "Device Info",
+    "operatingSystem": "Operating System",
+    "architecture": "Architecture",
+    "ipAddress": "IP Address",
+    "port": "Port",
+    "accessPassword": "Access Password",
+    "passwordSet": "Password is set",
+    "passwordNotSet": "No password set - set in Settings",
+    "passwordNotSetShort": "Not Set",
+    "serverControl": "Server Control",
+    "startServer": "Start Server",
+    "stopServer": "Stop Server",
+    "starting": "Starting...",
+    "stopping": "Stopping...",
+    "theme": "Theme",
+    "darkTheme": "Dark Theme",
+    "lightTheme": "Light Theme",
+    "autoTheme": "Auto Theme",
+    "glassTheme": "Glass Theme"
+  },
+  "logs": {
+    "title": "Real-time Logs",
+    "searchPlaceholder": "Search logs...",
+    "allLevels": "All Levels",
+    "info": "Info",
+    "warning": "Warning",
+    "error": "Error",
+    "success": "Success",
+    "system": "System",
+    "noLogs": "No logs available",
+    "liveMonitoring": "Live Monitoring",
+    "entries": "entries",
+    "lastUpdated": "Last updated: Just now"
+  },
+  "settings": {
+    "title": "Settings",
+    "appearance": {
+      "title": "Appearance",
+      "theme": "Theme",
+      "language": "Language",
+      "themeDescription": "Choose your preferred color theme"
+    },
+    "server": {
+      "title": "Server Settings",
+      "apiPort": "API Server Port",
+      "apiPortDescription": "Port number for the API server (1024-65535)",
+      "autoStart": "Auto-start API server on app launch",
+      "startOnBoot": "Start app on Windows boot"
+    },
+    "logs": {
+      "title": "Log Settings",
+      "bufferSize": "Log Buffer Size",
+      "bufferSizeDescription": "Number of log entries to keep in memory (10-1000)",
+      "enableLogFile": "Enable log file persistence",
+      "maxSize": "Log File Max Size (MB)",
+      "maxSizeDescription": "Maximum size before log rotation (1-100 MB)",
+      "openLocation": "Open Location",
+      "logPath": "Logs are saved in AppData/Roaming/LanDeviceManager/logs"
+    },
+    "commands": {
+      "title": "Command Whitelist",
+      "description": "Select which commands are allowed to execute via API",
+      "builtIn": "Built-in Commands",
+      "custom": "Custom Commands",
+      "addCustom": "Add Custom Command",
+      "addDescription": "Add new commands to the whitelist (e.g., ipconfig, ping, netstat)",
+      "commandName": "Command Name",
+      "addToWhitelist": "Add to Whitelist",
+      "customCommandNote": "Added commands will be enabled by default. Uncheck to disable."
+    },
+    "password": {
+      "title": "Password Settings",
+      "newPassword": "New Password",
+      "confirmPassword": "Confirm Password",
+      "passwordPlaceholder": "Enter new password (min 8 characters)",
+      "confirmPlaceholder": "Confirm new password",
+      "updatePassword": "Update Password",
+      "setPassword": "Set Password",
+      "removePassword": "Remove Password"
+    },
+    "ipBlacklist": {
+      "title": "IP Blacklist",
+      "description": "Block specific IP addresses from accessing the server",
+      "enable": "Enable IP Blacklist",
+      "addIp": "Add IP Address",
+      "ipPlaceholder": "e.g., 192.168.1.100 or 192.168.1.*",
+      "ipHint": "Use * as wildcard (e.g., 192.168.1.* blocks entire subnet)",
+      "blockedIps": "Blocked IP Addresses",
+      "invalidIp": "Invalid IP address format",
+      "alreadyExists": "This IP is already in the blacklist"
+    },
+    "saveSuccess": "Settings saved successfully",
+    "saveError": "Failed to save settings",
+    "portChanged": "Port changed, restarting server...",
+    "passwordMinLength": "Password must be at least 8 characters",
+    "passwordMismatch": "Passwords do not match",
+    "passwordUpdateSuccess": "Password updated successfully",
+    "passwordUpdateFailed": "Failed to update password",
+    "passwordClearSuccess": "Password cleared successfully",
+    "passwordClearFailed": "Failed to clear password",
+    "removeCommand": "Remove command"
+  },
+  "titlebar": {
+    "close": "Close",
+    "minimize": "Minimize",
+    "maximize": "Maximize",
+    "restore": "Restore"
+  },
+  "tray": {
+    "show": "Show",
+    "hide": "Hide",
+    "startServer": "Start Server",
+    "stopServer": "Stop Server",
+    "quit": "Quit"
+  },
+  "toast": {
+    "serverStarted": "Server started successfully",
+    "serverStopped": "Server stopped successfully",
+    "logsCleared": "Logs cleared",
+    "passwordUpdated": "Password updated successfully",
+    "passwordCleared": "Password cleared successfully",
+    "customCommandAdded": "Custom command added",
+    "customCommandRemoved": "Custom command removed",
+    "ipAdded": "IP address added to blacklist",
+    "ipRemoved": "IP address removed from blacklist",
+    "configNotLoaded": "Config not loaded yet",
+    "serverStartFailed": "Failed to start server",
+    "serverStopFailed": "Failed to stop server",
+    "logsClearFailed": "Failed to clear logs"
+  },
+  "commands": {
+    "shutdown": "Shutdown",
+    "restart": "Restart",
+    "sleep": "Sleep",
+    "lock": "Lock",
+    "systeminfo": "System Info",
+    "tasklist": "Task List",
+    "wmic": "WMIC",
+    "custom": "Custom Commands",
+    "shutdownDesc": "Shutdown the computer",
+    "restartDesc": "Restart the computer",
+    "sleepDesc": "Put computer to sleep",
+    "lockDesc": "Lock the workstation",
+    "systeminfoDesc": "Get system information",
+    "tasklistDesc": "List running processes",
+    "wmicDesc": "Windows Management Instrumentation",
+    "customDesc": "Allow executing custom system commands (e.g., ipconfig, ping)"
+  }
+}
