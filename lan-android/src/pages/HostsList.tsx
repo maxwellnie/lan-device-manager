@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
+import { useTranslation } from 'react-i18next';
 import { Host, ConnectResult } from '../types';
-import { 
-  IconServer, 
-  IconSearch, 
-  IconAdd, 
+import {
+  IconServer,
+  IconSearch,
+  IconAdd,
   IconDelete,
   IconLock,
   IconError,
@@ -15,6 +16,7 @@ import {
   getDeviceIconColor,
   getDeviceIconBgColor
 } from '../components/Icons';
+import { parseError, getErrorMessage } from '../utils/errorParser';
 
 interface HostsListProps {
   hosts: Host[];
@@ -23,13 +25,14 @@ interface HostsListProps {
 }
 
 const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [checkingHosts, setCheckingHosts] = useState<Set<string>>(new Set());
-  
+
   // Auth modal state
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [selectedHost, setSelectedHost] = useState<Host | null>(null);
@@ -37,28 +40,27 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
   const [isLoading, setIsLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authSuccess, setAuthSuccess] = useState(false);
-  
+
   // Toast state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  
+
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
     setToast({ message, type });
     setTimeout(() => setToast(null), 3000);
   };
 
-  const filteredHosts = hosts.filter(h => 
-    h.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+  const filteredHosts = hosts.filter(h =>
+    h.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
     h.ip.includes(searchQuery)
   );
 
-  // 检查单个设备在线状态
+  // Check single device status
   const checkHostStatus = async (host: Host): Promise<boolean> => {
     try {
-      // 尝试连接设备（不传密码，只检查是否在线）
       const result = await invoke<ConnectResult>('connect_to_device', {
         device: {
           id: host.id,
-          uuid: host.uuid || host.id,  // 如果没有uuid，使用id作为备选
+          uuid: host.uuid || host.id,
           name: host.name,
           ip_address: host.ip,
           port: host.port,
@@ -68,17 +70,15 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
         },
         password: null
       });
-      
+
       const isOnline = result.success || result.requires_auth;
-      
-      // 如果状态发生变化，更新状态
+
       if (host.status !== (isOnline ? 'Online' : 'Offline')) {
         onStatusChange(host.id, isOnline ? 'Online' : 'Offline');
       }
-      
+
       return isOnline;
     } catch (error) {
-      // 连接失败，设备离线
       if (host.status !== 'Offline') {
         onStatusChange(host.id, 'Offline');
       }
@@ -86,43 +86,39 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
     }
   };
 
-  // 检查所有设备在线状态
+  // Check all devices status
   const checkAllHostsStatus = async () => {
     if (hosts.length === 0) return;
-    
+
     setIsRefreshing(true);
     const checking = new Set<string>();
-    
-    // 并行检查所有设备
+
     const checkPromises = hosts.map(async (host) => {
       checking.add(host.id);
       setCheckingHosts(new Set(checking));
-      
+
       await checkHostStatus(host);
-      
+
       checking.delete(host.id);
       setCheckingHosts(new Set(checking));
     });
-    
+
     await Promise.all(checkPromises);
     setIsRefreshing(false);
   };
 
-  // 用户回到页面时检查设备状态
+  // Check device status when user returns to page
   useEffect(() => {
     checkAllHostsStatus();
-  }, [location.key]); // 当路由变化时触发
+  }, [location.key]);
 
-  // 刷新设备信息（从后端重新加载保存的设备信息）
+  // Refresh device info
   const refreshHostInfo = async (host: Host): Promise<Host> => {
     try {
-      // 重新加载保存的设备列表（后端可能已经更新了IP和端口）
       const savedDevices = await invoke<Array<{ id: string; uuid: string; ip_address: string; port: number; name: string }>>('get_saved_devices');
-      
-      // 查找相同UUID的设备
+
       const updated = savedDevices.find(d => d.uuid === host.uuid);
       if (updated) {
-        // 检查信息是否有变化
         if (updated.ip_address !== host.ip || updated.port !== host.port) {
           console.log(`Device ${host.name} info updated: ${host.ip}:${host.port} -> ${updated.ip_address}:${updated.port}`);
           return {
@@ -140,23 +136,19 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
     }
   };
 
-  // 点击设备时的处理
+  // Handle device click
   const handleHostClick = async (host: Host) => {
     if (isEditing) return;
 
     setIsLoading(true);
     setCheckingHosts(prev => new Set(prev).add(host.id));
 
-    // 步骤1: 刷新设备信息（获取最新IP和端口）
     const updatedHost = await refreshHostInfo(host);
-    
-    // 如果信息有更新，通知父组件
+
     if (updatedHost.ip !== host.ip || updatedHost.port !== host.port) {
-      // 更新设备信息
-      onStatusChange(host.id, 'Offline'); // 先标记为离线，等连接成功后再更新
+      onStatusChange(host.id, 'Offline');
     }
 
-    // 步骤2: 检查设备在线状态
     const isOnline = await checkHostStatus(updatedHost);
     setCheckingHosts(prev => {
       const next = new Set(prev);
@@ -166,21 +158,19 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
 
     if (!isOnline) {
       setIsLoading(false);
-      showToast('Device is offline', 'error');
+      showToast(t('hostsList.deviceOffline'), 'error');
       return;
     }
 
     setSelectedHost(updatedHost);
 
     try {
-      // 步骤3: 检查设备是否需要认证
       const requiresAuth = await invoke<boolean>('check_device_auth_required', {
         ip: updatedHost.ip,
         port: updatedHost.port
       });
 
       if (!requiresAuth) {
-        // 不需要认证，直接连接并进入控制界面
         const result = await invoke<ConnectResult>('connect_to_device', {
           device: {
             id: updatedHost.id,
@@ -198,17 +188,15 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
         if (result.success) {
           navigate(`/host/${updatedHost.id}`);
         } else {
-          showToast('Failed to connect to device', 'error');
+          showToast(t('hostsList.deviceUnreachable'), 'error');
           onStatusChange(updatedHost.id, 'Offline');
         }
       } else {
-        // 需要认证，尝试使用保存的密码
         const savedPassword = await invoke<string | null>('get_device_password', {
           deviceId: updatedHost.id
         });
 
         if (savedPassword) {
-          // 有保存的密码，尝试认证
           const result = await invoke<ConnectResult>('connect_to_device', {
             device: {
               id: updatedHost.id,
@@ -224,18 +212,15 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
           });
 
           if (result.success) {
-            // 认证成功，进入控制界面
             navigate(`/host/${updatedHost.id}`);
           } else {
-            // 保存的密码失效，清除密码并显示认证弹窗
             await invoke('clear_device_password', { deviceId: updatedHost.id });
             setShowAuthModal(true);
             setPassword('');
-            setAuthError('Password expired or changed. Please re-enter.');
+            setAuthError(t('auth.passwordExpired'));
             setAuthSuccess(false);
           }
         } else {
-          // 没有保存的密码，显示认证弹窗
           setShowAuthModal(true);
           setPassword('');
           setAuthError(null);
@@ -244,26 +229,25 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
       }
     } catch (error) {
       console.error('Failed to connect to device:', error);
-      showToast('Device is unreachable', 'error');
+      showToast(getErrorMessage(error), 'error');
       onStatusChange(updatedHost.id, 'Offline');
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 用户输入密码后的认证处理
+  // Handle authentication
   const handleAuthenticate = async () => {
     if (!selectedHost || !password) return;
-    
+
     setIsLoading(true);
     setAuthError(null);
-    
+
     try {
-      // 使用输入的密码连接并认证
       const result = await invoke<ConnectResult>('connect_to_device', {
         device: {
           id: selectedHost.id,
-          uuid: selectedHost.uuid || selectedHost.id,  // 如果没有uuid，使用id作为备选
+          uuid: selectedHost.uuid || selectedHost.id,
           name: selectedHost.name,
           ip_address: selectedHost.ip,
           port: selectedHost.port,
@@ -273,25 +257,24 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
         },
         password: password
       });
-      
+
       if (result.success) {
         setAuthSuccess(true);
-        // 认证成功，保存密码并进入控制界面
         setTimeout(() => {
           setShowAuthModal(false);
           navigate(`/host/${selectedHost.id}`);
         }, 500);
       } else {
-        setAuthError(result.error || 'Authentication failed');
-        
-        // 如果连接失败，标记为离线
-        if (result.error && (result.error.includes("Connection failed") || result.error.includes("not responding"))) {
+        const parsedError = parseError(result.error || t('auth.failed'));
+        setAuthError(parsedError.message);
+
+        if (parsedError.type === 'connection') {
           onStatusChange(selectedHost.id, 'Offline');
         }
       }
     } catch (error) {
-      setAuthError(`Authentication error: ${error}`);
-      // 标记为离线
+      const parsedError = parseError(error);
+      setAuthError(parsedError.message);
       onStatusChange(selectedHost.id, 'Offline');
     } finally {
       setIsLoading(false);
@@ -299,7 +282,7 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
   };
 
   return (
-    <div 
+    <div
       style={{
         minHeight: '100vh',
         backgroundColor: '#0f1419',
@@ -377,12 +360,12 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
                   color: '#ffffff',
                   margin: 0,
                   marginBottom: '8px'
-                }}>Authentication Successful</h2>
+                }}>{t('auth.success')}</h2>
                 <p style={{
                   fontSize: '14px',
                   color: '#8b9aa8',
                   margin: 0
-                }}>Entering control panel...</p>
+                }}>{t('auth.enteringControlPanel')}</p>
               </div>
             ) : (
               <>
@@ -417,19 +400,19 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
                     }}>{selectedHost.ip}</p>
                   </div>
                 </div>
-                
+
                 <p style={{
                   fontSize: '14px',
                   color: '#8b9aa8',
                   margin: 0,
                   marginBottom: '16px'
-                }}>Authentication required to access this device. Please enter the password:</p>
-                
+                }}>{t('auth.enterPassword')}</p>
+
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter password"
+                  placeholder={t('auth.passwordPlaceholder')}
                   disabled={isLoading}
                   style={{
                     width: '100%',
@@ -443,7 +426,7 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
                     outline: 'none'
                   }}
                 />
-                
+
                 {authError && (
                   <div style={{
                     display: 'flex',
@@ -457,7 +440,7 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
                     <span>{authError}</span>
                   </div>
                 )}
-                
+
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <button
                     onClick={() => setShowAuthModal(false)}
@@ -475,7 +458,7 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
                       opacity: isLoading ? 0.5 : 1
                     }}
                   >
-                    Cancel
+                    {t('app.cancel')}
                   </button>
                   <button
                     onClick={handleAuthenticate}
@@ -493,7 +476,7 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
                       opacity: isLoading || !password ? 0.5 : 1
                     }}
                   >
-                    {isLoading ? 'Verifying...' : 'Connect'}
+                    {isLoading ? t('auth.verifying') : t('app.connect')}
                   </button>
                 </div>
               </>
@@ -524,8 +507,8 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
           fontSize: '20px',
           fontWeight: 600,
           color: '#ffffff'
-        }}>Hosts</h1>
-        <button 
+        }}>{t('hostsList.title')}</h1>
+        <button
           onClick={() => setIsEditing(!isEditing)}
           style={{
             padding: '8px 12px',
@@ -537,7 +520,7 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
             cursor: 'pointer'
           }}
         >
-          {isEditing ? 'Done' : 'Edit'}
+          {isEditing ? t('app.done') : t('app.edit')}
         </button>
       </header>
 
@@ -558,9 +541,9 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
             gap: '12px'
           }}>
             <IconSearch style={{ width: '20px', height: '20px', color: '#5a6a7a', flexShrink: 0 }} />
-            <input 
+            <input
               type="text"
-              placeholder="Search hosts by name or IP..."
+              placeholder={t('hostsList.searchPlaceholder')}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               style={{
@@ -604,8 +587,8 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
             )}
           </button>
         </div>
-        
-        {/* 刷新状态提示 */}
+
+        {/* Refresh status hint */}
         {isRefreshing && (
           <div style={{
             display: 'flex',
@@ -627,7 +610,7 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
               borderRadius: '50%',
               animation: 'spin 1s linear infinite'
             }}></div>
-            <span>Checking device status...</span>
+            <span>{t('hostsList.checkingDeviceStatus')}</span>
           </div>
         )}
       </div>
@@ -639,7 +622,7 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
           const iconColor = getDeviceIconColor(host.name);
           const iconBgColor = getDeviceIconBgColor(host.name);
           const isChecking = checkingHosts.has(host.id);
-          
+
           return (
             <div
               key={host.id}
@@ -695,7 +678,7 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
                         borderTopColor: 'transparent',
                         animation: 'spin 1s linear infinite'
                       }}></div>
-                      <span style={{ fontSize: '13px', color: '#8b9aa8' }}>Checking...</span>
+                      <span style={{ fontSize: '13px', color: '#8b9aa8' }}>{t('hostsList.checking')}</span>
                     </>
                   ) : (
                     <>
@@ -708,7 +691,7 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
                       <span style={{
                         fontSize: '13px',
                         color: host.status === 'Online' ? '#10b981' : '#ef4444'
-                      }}>{host.status}</span>
+                      }}>{host.status === 'Online' ? t('app.online') : t('app.offline')}</span>
                     </>
                   )}
                   <span style={{ color: '#5a6a7a' }}>•</span>
@@ -774,13 +757,13 @@ const HostsList = ({ hosts, onRemove, onStatusChange }: HostsListProps) => {
             color: '#5a6a7a'
           }}>
             <IconServer style={{ width: '48px', height: '48px', marginBottom: '16px', opacity: 0.5 }} />
-            <p>No devices found</p>
+            <p>{t('hostsList.noDevices')}</p>
           </div>
         )}
       </div>
 
       {/* FAB */}
-      <button 
+      <button
         onClick={() => navigate('/discover')}
         style={{
           position: 'fixed',

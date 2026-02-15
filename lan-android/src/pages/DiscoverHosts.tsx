@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
+import { useTranslation } from 'react-i18next';
 import { Host, ConnectResult } from '../types';
-import { 
+import {
   IconArrowBack,
   IconLock,
   IconError,
@@ -11,15 +12,16 @@ import {
   getDeviceIconColor,
   getDeviceIconBgColor
 } from '../components/Icons';
+import { parseError, getErrorMessage } from '../utils/errorParser';
 
 interface DiscoverHostsProps {
   onAdd: (host: Host) => void;
-  existingHosts: Host[];  // 传递完整的设备列表，用于检测端口变化
+  existingHosts: Host[];
 }
 
 interface DiscoveredDevice {
   id: string;
-  uuid: string;           // 设备唯一标识符
+  uuid: string;
   name: string;
   ip_address: string;
   port: number;
@@ -28,6 +30,7 @@ interface DiscoveredDevice {
 }
 
 const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [discovered, setDiscovered] = useState<DiscoveredDevice[]>([]);
   const [isScanning, setIsScanning] = useState(true);
@@ -54,34 +57,24 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
       const interval = setInterval(async () => {
         try {
           const devices = await invoke<DiscoveredDevice[]>('get_discovered_devices');
-          
-          // 过滤逻辑：
-          // 1. 如果设备UUID已存在，但IP或端口不同，显示为"可更新"（允许重新添加以更新信息）
-          // 2. 如果设备UUID已存在且信息匹配，完全过滤（不显示）
-          // 3. 如果设备没有UUID，使用IP+端口匹配
+
           const filtered = devices.filter(d => {
-            // 查找已存在的设备（优先使用UUID匹配，如果没有UUID则使用ID匹配）
             const existing = existingHosts.find(h => {
               if (h.uuid && d.uuid) {
                 return h.uuid === d.uuid;
               }
-              // 没有UUID时使用ID（fullname）匹配
               return h.id === d.id;
             });
-            
+
             if (!existing) {
-              // 新设备，显示
               return true;
             }
-            // 已存在，检查信息是否变化
             if (existing.ip !== d.ip_address || existing.port !== d.port) {
-              // 信息有变化（IP或端口变了），显示以便更新
               return true;
             }
-            // 信息完全匹配，过滤掉
             return false;
           });
-          
+
           setDiscovered(filtered);
           if (filtered.length > 0) {
             setIsScanning(false);
@@ -110,13 +103,12 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
     }
   };
 
-  // 点击Add按钮时的处理流程
+  // Handle Add button click
   const handleAddClick = async (device: DiscoveredDevice) => {
     setIsLoading(true);
     setSelectedDevice(device);
-    
+
     try {
-      // 步骤1: 询问设备是否需要认证
       setCheckingAuth(true);
       const requiresAuth = await invoke<boolean>('check_device_auth_required', {
         ip: device.ip_address,
@@ -125,29 +117,26 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
       setCheckingAuth(false);
 
       if (requiresAuth) {
-        // 步骤2: 如果需要认证，弹出密码输入框
         setShowAuthModal(true);
         setPassword('');
         setAuthError(null);
         setAuthSuccess(false);
       } else {
-        // 不需要认证，直接连接并添加
         await connectAndAddDevice(device, null);
       }
     } catch (error) {
       console.error('Failed to check auth requirement:', error);
-      setAuthError(`Failed to check device: ${error}`);
+      setAuthError(getErrorMessage(error));
       setShowAuthModal(true);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 连接并添加设备
+  // Connect and add device
   const connectAndAddDevice = async (device: DiscoveredDevice, password: string | null) => {
     setIsLoading(true);
     try {
-      // 步骤3: 连接设备（如果需要会同时进行认证）
       const result = await invoke<ConnectResult>('connect_to_device', {
         device: {
           id: device.id,
@@ -163,36 +152,35 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
       });
 
       if (result.success) {
-        // 步骤4: 认证成功，添加设备到列表
         await addDeviceToList(device, password);
       } else {
-        // 连接或认证失败
         if (result.requires_auth) {
-          setAuthError(result.error || 'Authentication failed');
+          const parsedError = parseError(result.error || t('auth.failed'));
+          setAuthError(parsedError.message);
           setShowAuthModal(true);
         } else {
-          setAuthError(result.error || 'Connection failed');
+          const parsedError = parseError(result.error || t('errors.connectionFailed'));
+          setAuthError(parsedError.message);
           setShowAuthModal(true);
         }
       }
     } catch (error) {
       console.error('Failed to connect to device:', error);
-      setAuthError(`Connection failed: ${error}`);
+      setAuthError(getErrorMessage(error));
       setShowAuthModal(true);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 用户输入密码后的认证处理
+  // Handle authentication
   const handleAuthenticate = async () => {
     if (!selectedDevice || !password) return;
-    
+
     setIsLoading(true);
     setAuthError(null);
-    
+
     try {
-      // 使用输入的密码连接并认证
       const result = await invoke<ConnectResult>('connect_to_device', {
         device: {
           id: selectedDevice.id,
@@ -206,29 +194,29 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
         },
         password: password
       });
-      
+
       if (result.success) {
         setAuthSuccess(true);
-        // 认证成功，添加设备
         setTimeout(async () => {
           setShowAuthModal(false);
           await addDeviceToList(selectedDevice, password);
         }, 500);
       } else {
-        setAuthError(result.error || 'Authentication failed');
+        const parsedError = parseError(result.error || t('auth.failed'));
+        setAuthError(parsedError.message);
       }
     } catch (error) {
-      setAuthError(`Authentication error: ${error}`);
+      setAuthError(getErrorMessage(error));
     } finally {
       setIsLoading(false);
     }
   };
 
-  // 添加设备到列表
+  // Add device to list
   const addDeviceToList = async (device: DiscoveredDevice, password: string | null) => {
     const newHost: Host = {
       id: device.id,
-      uuid: device.uuid,      // 保存 UUID
+      uuid: device.uuid,
       name: device.name,
       ip: device.ip_address,
       port: device.port,
@@ -242,11 +230,10 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
     };
 
     try {
-      // 保存设备和密码（包含 UUID）
       await invoke('save_device', {
         device: {
           id: device.id,
-          uuid: device.uuid,    // 传递 UUID 到后端
+          uuid: device.uuid,
           name: device.name,
           ip_address: device.ip_address,
           port: device.port,
@@ -261,7 +248,7 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
       navigate('/');
     } catch (error) {
       console.error('Failed to save device:', error);
-      setAuthError(`Failed to save device: ${error}`);
+      setAuthError(getErrorMessage(error));
       setShowAuthModal(true);
     }
   };
@@ -316,12 +303,12 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
                   color: '#ffffff',
                   margin: 0,
                   marginBottom: '8px'
-                }}>Authentication Successful</h2>
+                }}>{t('auth.success')}</h2>
                 <p style={{
                   fontSize: '14px',
                   color: '#8b9aa8',
                   margin: 0
-                }}>Adding device...</p>
+                }}>{t('auth.addingDevice')}</p>
               </div>
             ) : (
               <>
@@ -356,19 +343,19 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
                     }}>{selectedDevice.ip_address}</p>
                   </div>
                 </div>
-                
+
                 <p style={{
                   fontSize: '14px',
                   color: '#8b9aa8',
                   margin: 0,
                   marginBottom: '16px'
-                }}>This device requires authentication. Please enter the access password:</p>
-                
+                }}>{t('auth.enterPassword')}</p>
+
                 <input
                   type="password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Enter password"
+                  placeholder={t('auth.passwordPlaceholder')}
                   disabled={isLoading}
                   style={{
                     width: '100%',
@@ -382,7 +369,7 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
                     outline: 'none'
                   }}
                 />
-                
+
                 {authError && (
                   <div style={{
                     display: 'flex',
@@ -396,7 +383,7 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
                     <span>{authError}</span>
                   </div>
                 )}
-                
+
                 <div style={{ display: 'flex', gap: '12px' }}>
                   <button
                     onClick={() => setShowAuthModal(false)}
@@ -414,7 +401,7 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
                       opacity: isLoading ? 0.5 : 1
                     }}
                   >
-                    Cancel
+                    {t('app.cancel')}
                   </button>
                   <button
                     onClick={handleAuthenticate}
@@ -432,7 +419,7 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
                       opacity: isLoading || !password ? 0.5 : 1
                     }}
                   >
-                    {isLoading ? 'Verifying...' : 'Verify & Add'}
+                    {isLoading ? t('auth.verifying') : t('discoverHosts.verifyAndAdd')}
                   </button>
                 </div>
               </>
@@ -446,7 +433,7 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
         padding: '16px 20px',
         paddingTop: '48px'
       }}>
-        <button 
+        <button
           onClick={() => navigate('/')}
           style={{
             display: 'flex',
@@ -462,17 +449,17 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
           }}
         >
           <IconArrowBack style={{ width: '20px', height: '20px' }} />
-          <span>Back</span>
+          <span>{t('app.back')}</span>
         </button>
-        
+
         <h1 style={{
           fontSize: '28px',
           fontWeight: 700,
           color: '#ffffff',
           margin: 0,
           marginBottom: '12px'
-        }}>Discover New Hosts</h1>
-        
+        }}>{t('discoverHosts.title')}</h1>
+
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -491,11 +478,11 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
             textTransform: 'uppercase',
             letterSpacing: '0.5px'
           }}>
-            {isScanning ? 'Scanning network...' : checkingAuth ? 'Checking device...' : 'Scan Complete'}
+            {isScanning ? t('discoverHosts.scanning') : checkingAuth ? t('discoverHosts.checkingDevice') : t('discoverHosts.scanComplete')}
           </span>
         </div>
-        
-        {/* 刷新按钮 */}
+
+        {/* Refresh button */}
         <button
           onClick={async () => {
             setIsScanning(true);
@@ -525,7 +512,7 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
           </svg>
-          Refresh Network
+          {t('discoverHosts.refreshNetwork')}
         </button>
       </div>
 
@@ -548,7 +535,7 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
               animation: 'spin 1s linear infinite',
               marginBottom: '16px'
             }}></div>
-            <p style={{ color: '#8b9aa8' }}>{checkingAuth ? 'Checking authentication...' : 'Detecting network devices...'}</p>
+            <p style={{ color: '#8b9aa8' }}>{checkingAuth ? t('discoverHosts.checkingAuth') : t('discoverHosts.detectingDevices')}</p>
             <style>{`
               @keyframes spin {
                 to { transform: rotate(360deg); }
@@ -564,9 +551,9 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
             const DeviceIcon = getDeviceIcon(device.name);
             const iconColor = getDeviceIconColor(device.name);
             const iconBgColor = getDeviceIconBgColor(device.name);
-            
+
             return (
-              <div 
+              <div
                 key={device.id}
                 style={{
                   display: 'flex',
@@ -618,14 +605,14 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
                         marginTop: '4px'
                       }}>
                         <IconLock style={{ width: '12px', height: '12px', color: '#f59e0b' }} />
-                        <span style={{ fontSize: '12px', color: '#f59e0b' }}>Requires password</span>
+                        <span style={{ fontSize: '12px', color: '#f59e0b' }}>{t('discoverHosts.requiresPassword')}</span>
                       </div>
                     )}
                   </div>
                 </div>
 
                 {/* Add Button */}
-                <button 
+                <button
                   onClick={() => handleAddClick(device)}
                   disabled={isLoading}
                   style={{
@@ -641,7 +628,7 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
                     flexShrink: 0
                   }}
                 >
-                  {isLoading ? '...' : 'Add'}
+                  {isLoading ? '...' : t('discoverHosts.add')}
                 </button>
               </div>
             );
@@ -655,8 +642,8 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
             padding: '60px 20px',
             color: '#8b9aa8'
           }}>
-            <p>No new devices discovered</p>
-            <button 
+            <p>{t('discoverHosts.noDevices')}</p>
+            <button
               onClick={() => { setIsScanning(true); startDiscovery(); }}
               style={{
                 marginTop: '16px',
@@ -669,7 +656,7 @@ const DiscoverHosts = ({ onAdd, existingHosts }: DiscoverHostsProps) => {
                 cursor: 'pointer'
               }}
             >
-              Rescan
+              {t('discoverHosts.rescan')}
             </button>
           </div>
         )}

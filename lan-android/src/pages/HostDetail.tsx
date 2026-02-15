@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
+import { useTranslation } from 'react-i18next';
 import { Host, DeviceStatus, CommandResult } from '../types';
 import {
   IconArrowBack,
@@ -16,6 +17,7 @@ import {
   getDeviceIconColor,
   getDeviceIconBgColor
 } from '../components/Icons';
+import { parseError } from '../utils/errorParser';
 
 interface HostDetailProps {
   hosts: Host[];
@@ -23,6 +25,7 @@ interface HostDetailProps {
 }
 
 const HostDetail = ({ hosts, onStatusChange }: HostDetailProps) => {
+  const { t } = useTranslation();
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const host = hosts.find(h => h.id === id);
@@ -61,7 +64,15 @@ const HostDetail = ({ hosts, onStatusChange }: HostDetailProps) => {
 
   const handlePowerAction = async (action: 'shutdown' | 'restart' | 'sleep' | 'lock') => {
     if (!host) return;
-    if (!confirm(`Are you sure you want to ${action} ${host.name}?`)) return;
+
+    const confirmMessages: Record<string, string> = {
+      shutdown: t('hostDetail.confirmShutdown', { name: host.name }),
+      restart: t('hostDetail.confirmRestart', { name: host.name }),
+      sleep: t('hostDetail.confirmSleep', { name: host.name }),
+      lock: t('hostDetail.confirmLock', { name: host.name }),
+    };
+
+    if (!confirm(confirmMessages[action])) return;
 
     setIsLoading(true);
     try {
@@ -70,24 +81,23 @@ const HostDetail = ({ hosts, onStatusChange }: HostDetailProps) => {
         command: action,
         args: []
       });
-      showToast(`${action} command sent to ${host.name}`);
+      showToast(t('hostDetail.commandSent', { action: t(`hostDetail.${action}`), name: host.name }));
       if (action === 'shutdown' || action === 'restart') {
         setTimeout(() => {
           onStatusChange(host.id, 'Offline');
         }, 2000);
       }
     } catch (error) {
-      const errorStr = String(error);
-      // 检查是否是认证错误
-      if (errorStr.includes('Authentication') || errorStr.includes('auth') || errorStr.includes('unauthorized') || errorStr.includes('401')) {
-        showToast('Authentication failed. Please reconnect from device list.', 'error');
-        // 返回设备列表
+      const parsedError = parseError(error);
+
+      if (parsedError.type === 'auth') {
+        showToast(t('auth.reconnectRequired'), 'error');
         setTimeout(() => navigate('/'), 2000);
-      } else if (errorStr.includes('Connection failed') || errorStr.includes('timeout') || errorStr.includes('refused') || errorStr.includes('not responding')) {
-        showToast('Device is unreachable', 'error');
+      } else if (parsedError.type === 'connection' || parsedError.type === 'network') {
+        showToast(t('errors.deviceUnreachable'), 'error');
         onStatusChange(host.id, 'Offline');
       } else {
-        showToast(`Failed to ${action}: ${error}`, 'error');
+        showToast(parsedError.message, 'error');
       }
     } finally {
       setIsLoading(false);
@@ -108,25 +118,24 @@ const HostDetail = ({ hosts, onStatusChange }: HostDetailProps) => {
       });
 
       if (result.success) {
-        setCommandOutput(result.stdout || 'Command executed successfully (no output)');
-        showToast('Command executed successfully');
+        setCommandOutput(result.stdout || t('toast.commandExecuted'));
+        showToast(t('toast.commandExecuted'));
       } else {
-        setCommandOutput(`Error: ${result.stderr || 'Unknown error'}`);
-        showToast('Command failed', 'error');
+        setCommandOutput(`${t('toast.error')}: ${result.stderr || t('errors.unknownError')}`);
+        showToast(t('toast.commandFailed'), 'error');
       }
     } catch (error) {
-      const errorStr = String(error);
-      setCommandOutput(`Error: ${error}`);
-      // 检查是否是认证错误
-      if (errorStr.includes('Authentication') || errorStr.includes('auth') || errorStr.includes('unauthorized') || errorStr.includes('401')) {
-        showToast('Authentication failed. Please reconnect from device list.', 'error');
-        // 返回设备列表
+      const parsedError = parseError(error);
+      setCommandOutput(`${t('toast.error')}: ${parsedError.message}`);
+
+      if (parsedError.type === 'auth') {
+        showToast(t('auth.reconnectRequired'), 'error');
         setTimeout(() => navigate('/'), 2000);
-      } else if (errorStr.includes('Connection failed') || errorStr.includes('timeout') || errorStr.includes('refused') || errorStr.includes('not responding')) {
-        showToast('Device is unreachable', 'error');
+      } else if (parsedError.type === 'connection' || parsedError.type === 'network') {
+        showToast(t('errors.deviceUnreachable'), 'error');
         onStatusChange(host.id, 'Offline');
       } else {
-        showToast(`Failed to execute command: ${error}`, 'error');
+        showToast(parsedError.message, 'error');
       }
     } finally {
       setIsExecuting(false);
@@ -153,7 +162,7 @@ const HostDetail = ({ hosts, onStatusChange }: HostDetailProps) => {
         justifyContent: 'center',
         color: '#ffffff'
       }}>
-        <p style={{ marginBottom: '16px' }}>Device not found</p>
+        <p style={{ marginBottom: '16px' }}>{t('hostDetail.deviceNotFound')}</p>
         <button
           onClick={() => navigate('/')}
           style={{
@@ -163,7 +172,7 @@ const HostDetail = ({ hosts, onStatusChange }: HostDetailProps) => {
             border: 'none',
             cursor: 'pointer'
           }}
-        >Go Back</button>
+        >{t('hostDetail.goBack')}</button>
       </div>
     );
   }
@@ -293,7 +302,7 @@ const HostDetail = ({ hosts, onStatusChange }: HostDetailProps) => {
             backgroundColor: host.status === 'Online' ? '#10b981' : '#ef4444'
           }}></span>
           <span style={{ color: '#8b9aa8', fontSize: '14px' }}>
-            {host.status} • {host.ip}:{host.port}
+            {host.status === 'Online' ? t('app.online') : t('app.offline')} • {host.ip}:{host.port}
           </span>
         </div>
 
@@ -305,7 +314,7 @@ const HostDetail = ({ hosts, onStatusChange }: HostDetailProps) => {
             marginTop: '8px'
           }}>
             <IconLock style={{ width: '14px', height: '14px', color: '#10b981' }} />
-            <span style={{ color: '#10b981', fontSize: '12px' }}>Authenticated</span>
+            <span style={{ color: '#10b981', fontSize: '12px' }}>{t('hostDetail.authenticated')}</span>
           </div>
         )}
       </div>
@@ -318,9 +327,9 @@ const HostDetail = ({ hosts, onStatusChange }: HostDetailProps) => {
           overflow: 'hidden'
         }}>
           {[
-            { label: 'Status', value: host.status === 'Online' ? 'Running' : 'Stopped', color: host.status === 'Online' ? '#10b981' : '#ef4444' },
-            { label: 'Uptime', value: deviceStatus?.uptime ? formatUptime(deviceStatus.uptime) : '--', color: '#ffffff' },
-            { label: 'OS', value: deviceStatus?.os_version || host.os || 'Unknown', color: '#ffffff' },
+            { label: t('hostDetail.status'), value: host.status === 'Online' ? t('hostDetail.running') : t('hostDetail.stopped'), color: host.status === 'Online' ? '#10b981' : '#ef4444' },
+            { label: t('hostDetail.uptime'), value: deviceStatus?.uptime ? formatUptime(deviceStatus.uptime) : '--', color: '#ffffff' },
+            { label: t('hostDetail.os'), value: deviceStatus?.os_version || host.os || t('app.unknown'), color: '#ffffff' },
           ].map((item, index, arr) => (
             <div key={item.label} style={{
               display: 'flex',
@@ -344,7 +353,7 @@ const HostDetail = ({ hosts, onStatusChange }: HostDetailProps) => {
           color: '#ffffff',
           margin: 0,
           marginBottom: '16px'
-        }}>Power Controls</h2>
+        }}>{t('hostDetail.powerControls')}</h2>
 
         <div style={{
           display: 'grid',
@@ -352,10 +361,10 @@ const HostDetail = ({ hosts, onStatusChange }: HostDetailProps) => {
           gap: '12px'
         }}>
           {[
-            { action: 'shutdown' as const, label: 'Shutdown', Icon: IconPower, color: '#ef4444', bgColor: 'rgba(239, 68, 68, 0.1)' },
-            { action: 'restart' as const, label: 'Restart', Icon: IconRestart, color: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.1)' },
-            { action: 'sleep' as const, label: 'Sleep', Icon: IconBedtime, color: '#3b82f6', bgColor: 'rgba(59, 130, 246, 0.1)' },
-            { action: 'lock' as const, label: 'Lock', Icon: IconLock, color: '#8b5cf6', bgColor: 'rgba(139, 92, 246, 0.1)' },
+            { action: 'shutdown' as const, label: t('hostDetail.shutdown'), Icon: IconPower, color: '#ef4444', bgColor: 'rgba(239, 68, 68, 0.1)' },
+            { action: 'restart' as const, label: t('hostDetail.restart'), Icon: IconRestart, color: '#f59e0b', bgColor: 'rgba(245, 158, 11, 0.1)' },
+            { action: 'sleep' as const, label: t('hostDetail.sleep'), Icon: IconBedtime, color: '#3b82f6', bgColor: 'rgba(59, 130, 246, 0.1)' },
+            { action: 'lock' as const, label: t('hostDetail.lock'), Icon: IconLock, color: '#8b5cf6', bgColor: 'rgba(139, 92, 246, 0.1)' },
           ].map(({ action, label, Icon, color, bgColor }) => (
             <button
               key={action}
@@ -390,7 +399,7 @@ const HostDetail = ({ hosts, onStatusChange }: HostDetailProps) => {
           color: '#ffffff',
           margin: 0,
           marginBottom: '16px'
-        }}>Command Execution</h2>
+        }}>{t('hostDetail.commandExecution')}</h2>
 
         <div style={{
           backgroundColor: '#1a2332',
@@ -406,7 +415,7 @@ const HostDetail = ({ hosts, onStatusChange }: HostDetailProps) => {
               type="text"
               value={commandInput}
               onChange={(e) => setCommandInput(e.target.value)}
-              placeholder="Enter command..."
+              placeholder={t('hostDetail.enterCommand')}
               disabled={host.status === 'Offline'}
               style={{
                 flex: 1,
@@ -439,7 +448,7 @@ const HostDetail = ({ hosts, onStatusChange }: HostDetailProps) => {
               }}
             >
               <IconTerminal style={{ width: '18px', height: '18px' }} />
-              {isExecuting ? 'Running...' : 'Run'}
+              {isExecuting ? t('hostDetail.running') : t('hostDetail.run')}
             </button>
           </div>
 
@@ -460,7 +469,7 @@ const HostDetail = ({ hosts, onStatusChange }: HostDetailProps) => {
                 fontSize: '12px'
               }}>
                 <IconTerminal style={{ width: '14px', height: '14px' }} />
-                <span>Output</span>
+                <span>{t('hostDetail.output')}</span>
               </div>
               <pre style={{
                 margin: 0,
@@ -493,7 +502,7 @@ const HostDetail = ({ hosts, onStatusChange }: HostDetailProps) => {
             opacity: host.status === 'Offline' ? 0.5 : 1
           }}
         >
-          Refresh Status
+          {t('hostDetail.refreshStatus')}
         </button>
       </div>
     </div>

@@ -1,14 +1,16 @@
 import { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route } from 'react-router-dom';
 import { invoke } from '@tauri-apps/api/core';
+import { useTranslation } from 'react-i18next';
 import HostsList from './pages/HostsList';
 import DiscoverHosts from './pages/DiscoverHosts';
 import HostDetail from './pages/HostDetail';
 import { Host } from './types';
+import { getErrorMessage } from './utils/errorParser';
 
 interface SavedDevice {
   id: string;
-  uuid?: string;           // 设备唯一标识符
+  uuid?: string;
   name: string;
   ip_address: string;
   port: number;
@@ -16,6 +18,7 @@ interface SavedDevice {
 }
 
 function App() {
+  const { t } = useTranslation();
   const [hosts, setHosts] = useState<Host[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -33,10 +36,10 @@ function App() {
         console.error('get_saved_devices failed:', invokeError);
         savedDevices = [];
       }
-      
+
       const loadedHosts: Host[] = savedDevices.map(device => ({
         id: device.id,
-        uuid: device.uuid,      // 加载 UUID
+        uuid: device.uuid,
         name: device.name,
         ip: device.ip_address,
         port: device.port,
@@ -47,21 +50,25 @@ function App() {
         os: 'Unknown',
         customName: device.custom_name,
       }));
-      
+
       setHosts(loadedHosts);
-      
+
       loadedHosts.forEach(host => checkHostStatus(host));
     } catch (error) {
       console.error('Failed to load:', error);
-      setError(`${error}`);
+      setError(getErrorMessage(error));
     } finally {
       setIsLoading(false);
     }
   };
 
-  const checkHostStatus = async (host: Host) => {
+  const checkHostStatus = async (host: Host): Promise<boolean> => {
     try {
-      await invoke('connect_to_device', {
+      const result = await invoke<{
+        success: boolean;
+        requires_auth?: boolean;
+        error?: string;
+      }>('connect_to_device', {
         device: {
           id: host.id,
           uuid: host.uuid || host.id,
@@ -74,34 +81,37 @@ function App() {
         },
         password: null
       });
-      updateHostStatus(host.id, 'Online');
+
+      const isOnline = result.success || result.requires_auth || false;
+
+      if (host.status !== (isOnline ? 'Online' : 'Offline')) {
+        updateHostStatus(host.id, isOnline ? 'Online' : 'Offline');
+      }
+
+      return isOnline;
     } catch (error) {
-      updateHostStatus(host.id, 'Offline');
+      if (host.status !== 'Offline') {
+        updateHostStatus(host.id, 'Offline');
+      }
+      return false;
     }
   };
 
   const addHost = (newHost: Host) => {
     setHosts(prev => {
-      console.log('Adding host:', newHost);
-      console.log('Existing hosts:', prev);
-      
-      // 检查是否已存在相同UUID的设备
       const existingIndex = prev.findIndex(h => {
-        const match = h.uuid && newHost.uuid && h.uuid === newHost.uuid;
-        console.log(`Checking host ${h.name} (uuid: ${h.uuid}) against new host (uuid: ${newHost.uuid}): match=${match}`);
-        return match;
+        if (h.uuid && newHost.uuid) {
+          return h.uuid === newHost.uuid;
+        }
+        return h.id === newHost.id;
       });
-      
+
       if (existingIndex >= 0) {
-        // 更新现有设备的信息（IP、端口可能变化）
-        console.log(`Updating existing device at index ${existingIndex}: ${prev[existingIndex].name}`);
         const updated = [...prev];
         updated[existingIndex] = { ...newHost, status: 'Online' };
         return updated;
       }
-      
-      // 添加新设备
-      console.log('Adding new device');
+
       return [...prev, newHost];
     });
   };
@@ -137,7 +147,7 @@ function App() {
           borderRadius: '50%',
           animation: 'spin 1s linear infinite'
         }}></div>
-        <p style={{ color: '#8b9aa8', marginTop: '16px', fontSize: '14px' }}>Loading...</p>
+        <p style={{ color: '#8b9aa8', marginTop: '16px', fontSize: '14px' }}>{t('app.loading')}</p>
         <style>{`
           @keyframes spin {
             to { transform: rotate(360deg); }
@@ -158,9 +168,9 @@ function App() {
         flexDirection: 'column',
         padding: '20px'
       }}>
-        <p style={{ color: '#ef4444', marginBottom: '8px', fontSize: '18px' }}>Error</p>
+        <p style={{ color: '#ef4444', marginBottom: '8px', fontSize: '18px' }}>{t('app.error')}</p>
         <p style={{ color: '#8b9aa8', fontSize: '14px', marginBottom: '24px', textAlign: 'center' }}>{error}</p>
-        <button 
+        <button
           onClick={() => { setError(null); setIsLoading(true); loadSavedDevices(); }}
           style={{
             padding: '12px 24px',
@@ -173,7 +183,7 @@ function App() {
             cursor: 'pointer'
           }}
         >
-          Retry
+          {t('app.retry')}
         </button>
       </div>
     );
@@ -182,17 +192,17 @@ function App() {
   return (
     <HashRouter>
       <Routes>
-        <Route 
-          path="/" 
-          element={<HostsList hosts={hosts} onRemove={removeHost} onStatusChange={updateHostStatus} />} 
+        <Route
+          path="/"
+          element={<HostsList hosts={hosts} onRemove={removeHost} onStatusChange={updateHostStatus} />}
         />
         <Route
           path="/discover"
           element={<DiscoverHosts onAdd={addHost} existingHosts={hosts} />}
         />
-        <Route 
-          path="/host/:id" 
-          element={<HostDetail hosts={hosts} onStatusChange={updateHostStatus} />} 
+        <Route
+          path="/host/:id"
+          element={<HostDetail hosts={hosts} onStatusChange={updateHostStatus} />}
         />
       </Routes>
     </HashRouter>
