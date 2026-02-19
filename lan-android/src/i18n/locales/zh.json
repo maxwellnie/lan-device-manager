@@ -97,7 +97,13 @@
     "failedToConnect": "连接设备失败",
     "failedToExecute": "执行命令失败",
     "invalidPassword": "密码无效",
-    "serverError": "服务器错误"
+    "serverError": "服务器错误",
+    "commandNotInWhitelist": "命令不在白名单中",
+    "forbidden": "操作被禁止",
+    "permissionDenied": "权限不足",
+    "ipBlocked": "IP地址被黑名单阻止",
+    "blacklisted": "IP地址在黑名单中",
+    "blocked": "连接被阻止"
   },
   "toast": {
     "success": "成功",

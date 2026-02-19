@@ -121,8 +121,10 @@ const HostDetail = ({ hosts, onStatusChange }: HostDetailProps) => {
         setCommandOutput(result.stdout || t('toast.commandExecuted'));
         showToast(t('toast.commandExecuted'));
       } else {
-        setCommandOutput(`${t('toast.error')}: ${result.stderr || t('errors.unknownError')}`);
-        showToast(t('toast.commandFailed'), 'error');
+        // 解析后端返回的错误信息
+        const parsedError = parseError(result.stderr || '');
+        setCommandOutput(`${t('toast.error')}: ${parsedError.message}`);
+        showToast(parsedError.type === 'unknown' ? t('toast.commandFailed') : parsedError.message, 'error');
       }
     } catch (error) {
       const parsedError = parseError(error);

@@ -2,9 +2,15 @@ use std::sync::Arc;
 use tauri::{
     menu::{Menu, MenuItem, PredefinedMenuItem},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    Emitter, Manager,
+    window::{Effect, EffectsBuilder},
+    Emitter, Listener, Manager,
 };
 use tokio::sync::Mutex;
+
+#[cfg(target_os = "windows")]
+use windows::Win32::System::Threading::{
+    SetPriorityClass, BELOW_NORMAL_PRIORITY_CLASS,
+};
 
 pub mod api;
 pub mod auth;
@@ -21,7 +27,6 @@ use state::AppState;
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    // 初始化日志
     env_logger::init();
 
     let state = Arc::new(Mutex::new(AppState::new()));
@@ -51,7 +56,57 @@ pub fn run() {
         .setup(|app| {
             log::info!("LanDevice Manager setup...");
 
-            // 创建托盘菜单
+            #[cfg(target_os = "windows")]
+            unsafe {
+                use windows::Win32::System::Threading::GetCurrentProcess;
+                let process = GetCurrentProcess();
+                let _ = SetPriorityClass(process, BELOW_NORMAL_PRIORITY_CLASS);
+                log::info!("Process priority set to below normal");
+            }
+
+            if let Some(window) = app.get_webview_window("main") {
+                let effects = EffectsBuilder::new()
+                    .effects(vec![Effect::Blur])
+                    .build();
+                let _ = window.set_effects(effects);
+                log::info!("Window blur effect applied");
+
+                let was_minimized = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+                let window_for_listen = window.clone();
+                let was_minimized_for_listen = was_minimized.clone();
+                
+                let window_for_minimize = window.clone();
+                let was_minimized_for_minimize = was_minimized.clone();
+                let _minimize_listen = app.listen("window-minimized", move |_| {
+                    log::info!("Received window-minimized event");
+                    was_minimized_for_minimize.store(true, std::sync::atomic::Ordering::SeqCst);
+                    let _ = window_for_minimize.emit("window-visible", false);
+                });
+
+                let window_clone = window.clone();
+
+                window.on_window_event(move |event| {
+                    match event {
+                        tauri::WindowEvent::CloseRequested { api, .. } => {
+                            api.prevent_close();
+                            let _ = window_clone.set_size(tauri::Size::Physical(tauri::PhysicalSize { width: 1, height: 1 }));
+                            let _ = window_clone.hide();
+                            let _ = window_clone.emit("window-visible", false);
+                            log::info!("Window hidden to tray with minimized size");
+                        }
+                        tauri::WindowEvent::Focused(focused) => {
+                            if *focused {
+                                if was_minimized_for_listen.swap(false, std::sync::atomic::Ordering::SeqCst) {
+                                    log::info!("Window restored from minimized");
+                                    let _ = window_for_listen.emit("window-visible", true);
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                });
+            }
+
             let show_i = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
             let hide_i = MenuItem::with_id(app, "hide", "Hide", true, None::<&str>)?;
             let separator = PredefinedMenuItem::separator(app)?;
@@ -75,7 +130,6 @@ pub fn run() {
                 ],
             )?;
 
-            // 创建托盘图标
             let _tray = TrayIconBuilder::new()
                 .icon(app.default_window_icon().unwrap().clone())
                 .menu(&menu)
@@ -84,26 +138,28 @@ pub fn run() {
                     match event.id.as_ref() {
                         "show" => {
                             if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize { width: 1200, height: 800 }));
                                 let _ = window.show();
                                 let _ = window.set_focus();
+                                let _ = window.emit("window-visible", true);
                                 show_notification("LanDevice Manager", "Window shown");
                             }
                         }
                         "hide" => {
                             if let Some(window) = app.get_webview_window("main") {
+                                let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize { width: 1, height: 1 }));
                                 let _ = window.hide();
+                                let _ = window.emit("window-visible", false);
                                 show_notification("LanDevice Manager", "Window hidden to tray");
                             }
                         }
                         "start_server" => {
-                            // 通过事件通知前端启动服务
                             if let Some(window) = app.get_webview_window("main") {
                                 let _ = window.emit("tray-start-server", ());
                                 show_notification("LanDevice Manager", "Starting API server...");
                             }
                         }
                         "stop_server" => {
-                            // 通过事件通知前端停止服务
                             if let Some(window) = app.get_webview_window("main") {
                                 let _ = window.emit("tray-stop-server", ());
                                 show_notification("LanDevice Manager", "Stopping API server...");
@@ -125,8 +181,10 @@ pub fn run() {
                     {
                         let app = tray.app_handle();
                         if let Some(window) = app.get_webview_window("main") {
+                            let _ = window.set_size(tauri::Size::Physical(tauri::PhysicalSize { width: 1200, height: 800 }));
                             let _ = window.show();
                             let _ = window.set_focus();
+                            let _ = window.emit("window-visible", true);
                         }
                     }
                 })
@@ -135,8 +193,10 @@ pub fn run() {
             Ok(())
         })
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .expect("error while running tapplication");
 }
+
+
 
 #[tauri::command]
 async fn start_server(
@@ -186,12 +246,9 @@ async fn get_logs(
 ) -> Result<Vec<models::LogEntry>, String> {
     let state = state.lock().await;
     let mut logs = state.logger.get_logs(limit.unwrap_or(100));
-    // 合并 API 日志
     let api_logs = api::get_api_logs(limit.unwrap_or(100));
     logs.extend(api_logs);
-    // 按时间排序
     logs.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
-    // 限制数量
     if logs.len() > limit.unwrap_or(100) {
         logs.truncate(limit.unwrap_or(100));
     }
@@ -206,7 +263,6 @@ async fn clear_logs(state: tauri::State<'_, Arc<Mutex<AppState>>>) -> Result<boo
     Ok(true)
 }
 
-// 配置相关命令
 #[tauri::command]
 async fn get_config() -> Result<config::AppConfig, String> {
     Ok(config::get_config())
@@ -214,9 +270,6 @@ async fn get_config() -> Result<config::AppConfig, String> {
 
 #[tauri::command]
 async fn save_config(new_config: config::AppConfig, _app: tauri::AppHandle) -> Result<(), String> {
-    // 注意：开机自启动现在由前端通过 @tauri-apps/plugin-autostart 插件直接处理
-    // 这里只保存配置到文件
-    
     log::info!("Saving config - command_whitelist: {:?}, custom_commands: {:?}, ip_blacklist: {:?}, enable_ip_blacklist: {}", 
         new_config.command_whitelist, new_config.custom_commands, new_config.ip_blacklist, new_config.enable_ip_blacklist);
 
@@ -232,7 +285,6 @@ async fn save_config(new_config: config::AppConfig, _app: tauri::AppHandle) -> R
         cfg.theme = new_config.theme;
         cfg.ip_blacklist = new_config.ip_blacklist;
         cfg.enable_ip_blacklist = new_config.enable_ip_blacklist;
-        // 注意：password_hash 不在这里更新，它通过专门的 set_config_password/clear_config_password 命令管理
         if let Some(ref path) = new_config.log_file_path {
             cfg.log_file_path = Some(path.clone());
         }
@@ -240,9 +292,6 @@ async fn save_config(new_config: config::AppConfig, _app: tauri::AppHandle) -> R
     .map_err(|e| e.to_string())
 }
 
-
-
-/// 显示系统通知
 fn show_notification(title: &str, message: &str) {
     use notify_rust::Notification;
 
@@ -259,18 +308,15 @@ async fn set_config_password(
     state: tauri::State<'_, Arc<Mutex<AppState>>>,
     password: String,
 ) -> Result<(), String> {
-    // 更新配置文件
     config::update_config(|cfg| {
         let _ = cfg.set_password(&password);
     })
     .map_err(|e| e.to_string())?;
     
-    // 更新 AuthManager 的密码（用于运行时验证）
     let mut state = state.lock().await;
     state.auth_manager.set_password(&password)
         .map_err(|e| format!("Failed to update auth manager password: {}", e))?;
     
-    // 吊销所有现有会话，强制所有客户端重新认证
     state.auth_manager.revoke_all_sessions();
     state.logger.system("Auth", "Password updated, all sessions revoked");
     
@@ -293,17 +339,13 @@ async fn has_config_password() -> Result<bool, String> {
 async fn clear_config_password(
     state: tauri::State<'_, Arc<Mutex<AppState>>>,
 ) -> Result<(), String> {
-    // 更新配置文件
     config::update_config(|cfg| {
         cfg.clear_password();
     })
     .map_err(|e| e.to_string())?;
     
-    // 清除 AuthManager 的密码
     let mut state = state.lock().await;
     state.auth_manager.clear_password();
-    
-    // 吊销所有现有会话
     state.auth_manager.revoke_all_sessions();
     state.logger.system("Auth", "Password cleared, all sessions revoked");
     
@@ -320,7 +362,6 @@ async fn reload_config(state: tauri::State<'_, Arc<Mutex<AppState>>>) -> Result<
     config::reload_config();
     logger::reload_logger_config();
     
-    // 同步 AuthManager 的密码状态
     let state = state.lock().await;
     state.auth_manager.reload_password();
     

@@ -80,3 +80,10 @@ Cargo.lock
 package-lock.json
 yarn.lock
 pnpm-lock.yaml
+
+# Project specific
+agent_workspace/
+.trae/specs/
+GIT_WORKFLOW.md
+AI_FLOW_CONFIG.json
+APBFRAMEWORK_CONFIG.json

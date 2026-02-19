@@ -1,13 +1,14 @@
 import { useState, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { getCurrentWindow } from "@tauri-apps/api/window";
 import { createPortal } from "react-dom";
 import { useTranslation } from "react-i18next";
 import "./App.css";
 import Settings from "./components/Settings";
 import TitleBar from "./components/TitleBar";
 import LoadingScreen from "./components/LoadingScreen";
+import { useTimerManager } from "./utils/useTimerManager";
+import { performanceMonitor } from "./utils/performanceMonitor";
 
 // 类型定义
 interface ServerStatus {
@@ -75,6 +76,10 @@ function App() {
   const [toast, setToast] = useState<{ message: string; type: "success" | "error" } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [currentTheme, setCurrentTheme] = useState<Theme>("system");
+  const [isWindowVisible, setIsWindowVisible] = useState(true);
+
+  // 定时器管理器
+  const { setManagedInterval, setManagedTimeout, clearManagedTimer } = useTimerManager(isWindowVisible);
 
   // 初始化 - 只执行一次
   useEffect(() => {
@@ -125,30 +130,89 @@ function App() {
     document.addEventListener('contextmenu', handleContextMenu, true);
     document.addEventListener('selectstart', handleSelectStart, true);
 
-    // 监听窗口关闭事件，改为隐藏到托盘
-    const window = getCurrentWindow();
-    const unlistenClose = window.onCloseRequested((event) => {
-      event.preventDefault();
-      window.hide();
-    });
+    // GPU 状态切换函数
+    const enterGpuSavingMode = () => {
+      console.log('Entering GPU saving mode...');
+      pauseAllAnimations();
+      document.documentElement.classList.add('gpu-saving-mode');
+      document.body.style.visibility = 'hidden';
+      document.body.style.opacity = '0';
+      performanceMonitor.stopMonitoring();
+      
+      if (config?.theme === 'glass') {
+        console.log('Glass theme: releasing GPU-intensive effects');
+      }
+    };
+
+    const exitGpuSavingMode = () => {
+      console.log('Exiting GPU saving mode...');
+      document.body.style.visibility = 'visible';
+      document.body.style.opacity = '1';
+      document.documentElement.classList.remove('gpu-saving-mode');
+      setTimeout(() => resumeAllAnimations(), 100);
+      performanceMonitor.startMonitoring(10000);
+      
+      if (serverStatus?.running) {
+        fetchLogs();
+      }
+    };
+
+    // 监听窗口可见性变化（由后端发送）- 统一处理最小化、隐藏、关闭等
+    const setupVisibilityListener = async () => {
+      const unlisten = await listen<boolean>('window-visible', (event) => {
+        const isVisible = event.payload;
+        setIsWindowVisible(isVisible);
+        
+        if (isVisible) {
+          exitGpuSavingMode();
+        } else {
+          enterGpuSavingMode();
+        }
+      });
+      
+      return unlisten;
+    };
+
+    const cleanupVisibility = setupVisibilityListener();
+
+    // 监听页面可见性变化（visibilitychange事件）- 作为备用机制
+    const handleVisibilityChange = () => {
+      const isVisible = !document.hidden;
+      setIsWindowVisible(isVisible);
+      
+      if (isVisible) {
+        exitGpuSavingMode();
+      } else {
+        enterGpuSavingMode();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // 初始状态检查
+    handleVisibilityChange();
 
     return () => {
       document.removeEventListener('contextmenu', handleContextMenu, true);
       document.removeEventListener('selectstart', handleSelectStart, true);
-      unlistenClose.then(fn => fn());
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      cleanupVisibility.then(cleanup => cleanup());
     };
   }, []); // 空依赖数组，只执行一次
 
-  // 定时刷新日志 - 独立于初始化
+  // 定时刷新日志 - 使用定时器管理器
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (serverStatus?.running) {
-        fetchLogs();
-      }
-    }, 3000);
+    if (!serverStatus?.running) return;
 
-    return () => clearInterval(interval);
-  }, [serverStatus?.running]);
+    // 使用定时器管理器注册日志刷新定时器
+    const timerId = setManagedInterval(() => {
+      fetchLogs();
+    }, 5000, 'log_refresh_timer');
+
+    return () => {
+      clearManagedTimer(timerId);
+    };
+  }, [serverStatus?.running, setManagedInterval, clearManagedTimer]);
 
   // 监听托盘事件 - 使用 ref 防止重复触发
   const isProcessingRef = useRef(false);
@@ -403,6 +467,105 @@ function App() {
     }
   };
 
+  // 暂停所有CSS动画 - 优化版本
+  const pauseAllAnimations = () => {
+    // 方法1：使用CSS类暂停所有动画
+    document.documentElement.classList.add('animations-paused');
+    
+    // 方法2：直接暂停已知的动画元素（更精确控制）
+    const knownAnimations = [
+      '.loading-spinner',      // 加载旋转动画
+      '.loading-progress-bar', // 加载进度条动画
+      '.pulse',               // 实时指示器脉冲动画
+      '[data-theme="glass"] .device-info:hover', // 玻璃主题悬停动画
+      '[data-theme="glass"] .btn:hover',        // 按钮悬停动画
+    ];
+    
+    knownAnimations.forEach(selector => {
+      const elements = document.querySelectorAll(selector);
+      elements.forEach(element => {
+        const style = (element as HTMLElement).style;
+        // 保存原始动画状态
+        const computedStyle = getComputedStyle(element);
+        const animationPlayState = computedStyle.animationPlayState || computedStyle.webkitAnimationPlayState;
+        
+        if (animationPlayState && animationPlayState !== 'paused') {
+          (element as any)._originalAnimationPlayState = animationPlayState;
+          style.animationPlayState = 'paused';
+          style.webkitAnimationPlayState = 'paused';
+        }
+      });
+    });
+    
+    // 方法3：暂停所有正在运行的CSS动画（备用方案）
+    const animatedElements = document.querySelectorAll('*');
+    animatedElements.forEach(element => {
+      const computedStyle = getComputedStyle(element);
+      const animationName = computedStyle.animationName || computedStyle.webkitAnimationName;
+      
+      if (animationName && animationName !== 'none') {
+        const style = (element as HTMLElement).style;
+        const animationPlayState = computedStyle.animationPlayState || computedStyle.webkitAnimationPlayState;
+        
+        if (animationPlayState && animationPlayState !== 'paused') {
+          // 保存原始状态
+          if (!(element as any)._originalAnimationPlayState) {
+            (element as any)._originalAnimationPlayState = animationPlayState;
+          }
+          // 暂停动画
+          style.animationPlayState = 'paused';
+          style.webkitAnimationPlayState = 'paused';
+        }
+      }
+    });
+    
+    console.log('CSS animations paused (window hidden)');
+  };
+
+  // 恢复所有CSS动画 - 优化版本
+  const resumeAllAnimations = () => {
+    // 方法1：移除CSS类恢复动画
+    document.documentElement.classList.remove('animations-paused');
+    
+    // 方法2：恢复已知动画元素的原始状态
+    const knownAnimations = [
+      '.loading-spinner',
+      '.loading-progress-bar', 
+      '.pulse',
+      '[data-theme="glass"] .device-info:hover',
+      '[data-theme="glass"] .btn:hover',
+    ];
+    
+    knownAnimations.forEach(selector => {
+      const elements = document.querySelectorAll(selector);
+      elements.forEach(element => {
+        const style = (element as HTMLElement).style;
+        if ((element as any)._originalAnimationPlayState) {
+          style.animationPlayState = (element as any)._originalAnimationPlayState;
+          style.webkitAnimationPlayState = (element as any)._originalAnimationPlayState;
+          delete (element as any)._originalAnimationPlayState;
+        } else {
+          // 如果没有保存的状态，默认恢复为运行状态
+          style.animationPlayState = 'running';
+          style.webkitAnimationPlayState = 'running';
+        }
+      });
+    });
+    
+    // 方法3：恢复所有元素的动画状态（备用方案）
+    const animatedElements = document.querySelectorAll('*');
+    animatedElements.forEach(element => {
+      const style = (element as HTMLElement).style;
+      if ((element as any)._originalAnimationPlayState) {
+        style.animationPlayState = (element as any)._originalAnimationPlayState;
+        style.webkitAnimationPlayState = (element as any)._originalAnimationPlayState;
+        delete (element as any)._originalAnimationPlayState;
+      }
+    });
+    
+    console.log('CSS animations resumed (window visible)');
+  };
+
   // 过滤日志
   const filteredLogs = logs.filter((log) => {
     if (logFilter !== "all" && log.level.toLowerCase() !== logFilter) {
@@ -458,6 +621,8 @@ function App() {
           message={toast.message}
           type={toast.type}
           onClose={closeToast}
+          setManagedTimeout={setManagedTimeout}
+          clearManagedTimer={clearManagedTimer}
         />
       )}
 
@@ -687,11 +852,25 @@ function App() {
 }
 
 // Toast 组件 - 使用 Portal 渲染到 body
-function Toast({ message, type, onClose }: { message: string; type: "success" | "error"; onClose: () => void }) {
+function Toast({ 
+  message, 
+  type, 
+  onClose,
+  setManagedTimeout,
+  clearManagedTimer 
+}: { 
+  message: string; 
+  type: "success" | "error"; 
+  onClose: () => void;
+  setManagedTimeout: (handler: () => void, delay: number, id?: string) => string;
+  clearManagedTimer: (id: string) => void;
+}) {
   useEffect(() => {
-    const timer = setTimeout(onClose, 1500);
-    return () => clearTimeout(timer);
-  }, [onClose]);
+    const timerId = setManagedTimeout(onClose, 1500, `toast_${Date.now()}`);
+    return () => {
+      clearManagedTimer(timerId);
+    };
+  }, [onClose, setManagedTimeout, clearManagedTimer]);
 
   return createPortal(
     <div className={`toast ${type}`}>

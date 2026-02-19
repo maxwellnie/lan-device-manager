@@ -97,7 +97,13 @@
     "failedToConnect": "Failed to connect to device",
     "failedToExecute": "Failed to execute command",
     "invalidPassword": "Invalid password",
-    "serverError": "Server error"
+    "serverError": "Server error",
+    "commandNotInWhitelist": "Command not in whitelist",
+    "forbidden": "Operation forbidden",
+    "permissionDenied": "Permission denied",
+    "ipBlocked": "IP address blocked by blacklist",
+    "blacklisted": "IP address is blacklisted",
+    "blocked": "Connection blocked"
   },
   "toast": {
     "success": "Success",

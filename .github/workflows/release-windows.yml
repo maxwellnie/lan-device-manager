@@ -1,0 +1,52 @@
+name: Release Windows (Beta)
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  release-windows:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - windows-latest
+        arch:
+          - x64
+          - x86
+          - aarch64
+
+    runs-on: ${{ matrix.platform }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.arch == 'x86' && 'i686-pc-windows-msvc' || matrix.arch == 'aarch64' && 'aarch64-pc-windows-msvc' || 'x86_64-pc-windows-msvc' }}
+
+      - name: Install dependencies
+        run: |
+          cd lan-windows
+          npm ci
+
+      - name: Build Tauri app
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: lan-windows
+          args: ${{ matrix.arch == 'x86' && '--target i686-pc-windows-msvc' || matrix.arch == 'aarch64' && '--target aarch64-pc-windows-msvc' || '' }}
+          tagName: ${{ github.ref_name }}
+          releaseName: 'LanDevice Manager ${{ github.ref_name }} (Beta)'
+          releaseDraft: true
+          prerelease: true

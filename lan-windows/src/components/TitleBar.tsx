@@ -17,6 +17,7 @@ function TitleBar() {
 
   const handleMinimize = async () => {
     await getCurrentWindow().minimize();
+    await getCurrentWindow().emit("window-minimized", true);
   };
 
   const handleMaximize = async () => {
@@ -30,8 +31,12 @@ function TitleBar() {
   };
 
   const handleClose = async () => {
-    // 关闭按钮改为隐藏到托盘，而不是退出程序
-    await getCurrentWindow().hide();
+    // 使用 close() 触发后端的 CloseRequested 事件
+    // 后端会阻止关闭并执行完整的 GPU 优化逻辑：
+    // 1. 将窗口缩小到 1x1 像素
+    // 2. 隐藏窗口
+    // 3. 发送 window-visible 事件通知前端进入 GPU 节省模式
+    await getCurrentWindow().close();
   };
 
   // 处理拖拽

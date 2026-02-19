@@ -2,7 +2,7 @@ import i18n from '../i18n';
 
 export interface ParsedError {
   message: string;
-  type: 'auth' | 'connection' | 'network' | 'server' | 'unknown';
+  type: 'auth' | 'connection' | 'network' | 'server' | 'permission' | 'unknown';
   originalError?: string;
 }
 
@@ -11,9 +11,27 @@ const errorPatterns: Array<{
   type: ParsedError['type'];
   key: string;
 }> = [
-  // Authentication errors
+  // Blacklist errors - 优先检查
   {
-    patterns: ['authentication', 'auth', 'unauthorized', '401', 'invalid password', 'wrong password', 'password incorrect'],
+    patterns: ['blacklist', 'ip blocked', 'blocked by blacklist', 'ip is blacklisted', 'connection blocked'],
+    type: 'permission',
+    key: 'errors.ipBlocked'
+  },
+  // Whitelist/Permission errors - 优先检查
+  {
+    patterns: ['not in whitelist', 'command not allowed', 'forbidden', '403', 'not permitted'],
+    type: 'permission',
+    key: 'errors.commandNotInWhitelist'
+  },
+  // Permission denied errors - 优先检查
+  {
+    patterns: ['permission denied', 'access denied'],
+    type: 'permission',
+    key: 'errors.permissionDenied'
+  },
+  // Authentication errors - 注意：不包含 "unauthorized"，避免与 permission 混淆
+  {
+    patterns: ['authentication failed', 'auth failed', 'invalid password', 'wrong password', 'password incorrect', '401'],
     type: 'auth',
     key: 'errors.authFailed'
   },
@@ -98,6 +116,13 @@ export function isConnectionError(error: unknown): boolean {
 }
 
 /**
+ * Check if error is a permission error (whitelist, forbidden, etc.)
+ */
+export function isPermissionError(error: unknown): boolean {
+  return parseError(error).type === 'permission';
+}
+
+/**
  * Parse connection result error from Rust backend
  */
 export function parseConnectionError(error: string | null): string {
@@ -117,6 +142,9 @@ export function getActionErrorMessage(action: string, error: unknown): string {
         ? i18n.t('errors.authFailed')
         : i18n.t('errors.failedToConnect');
     case 'execute':
+      if (parsed.type === 'permission') {
+        return parsed.message;
+      }
       return i18n.t('errors.failedToExecute');
     case 'save':
       return i18n.t('errors.failedToSave');

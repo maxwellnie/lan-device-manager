@@ -38,18 +38,7 @@
   align-items: center;
   justify-content: center;
   box-shadow: 0 8px 32px rgba(37, 99, 235, 0.3);
-  animation: pulse 2s ease-in-out infinite;
-}
-
-@keyframes pulse {
-  0%, 100% {
-    transform: scale(1);
-    box-shadow: 0 8px 32px rgba(37, 99, 235, 0.3);
-  }
-  50% {
-    transform: scale(1.05);
-    box-shadow: 0 12px 48px rgba(37, 99, 235, 0.5);
-  }
+  /* 移除无限动画以降低CPU占用 */
 }
 
 .loading-logo .material-icon {
@@ -79,7 +68,8 @@
   border: 3px solid rgba(147, 197, 253, 0.2);
   border-top-color: #3b82f6;
   border-radius: 50%;
-  animation: spin 1s linear infinite;
+  /* 降低动画频率以减少CPU占用 */
+  animation: spin 1.5s linear infinite;
 }
 
 @keyframes spin {
@@ -101,7 +91,8 @@
   height: 100%;
   background: linear-gradient(90deg, #3b82f6 0%, #60a5fa 100%);
   border-radius: 2px;
-  animation: progress 2s ease-in-out infinite;
+  /* 降低动画频率以减少CPU占用 */
+  animation: progress 3s ease-in-out infinite;
 }
 
 @keyframes progress {
