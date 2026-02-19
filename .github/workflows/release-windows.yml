@@ -6,11 +6,10 @@ on:
       - 'v*'
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   release-windows:
+    permissions:
+      contents: write
     strategy:
       fail-fast: false
       matrix:
