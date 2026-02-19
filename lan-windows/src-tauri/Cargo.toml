@@ -1,6 +1,6 @@
 [package]
 name = "lan-windows"
-version = "0.1.0-beta"
+version = "0.1.0-1"
 description = "A Tauri App"
 authors = ["you"]
 edition = "2021"

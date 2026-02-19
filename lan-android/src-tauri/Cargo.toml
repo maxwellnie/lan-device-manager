@@ -1,6 +1,6 @@
 [package]
 name = "lan-android"
-version = "0.1.0-beta"
+version = "0.1.0-1"
 description = "LanDevice Manager Android Client"
 authors = ["you"]
 edition = "2021"
