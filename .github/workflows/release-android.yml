@@ -1,10 +1,10 @@
 name: Build Android (Beta)
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
-  # push:
-  #   tags:
-  #     - 'v*'
 
 jobs:
   build-android:
@@ -13,6 +13,11 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libglib2.0-dev libatk1.0-dev libgdk-pixbuf2.0-dev libcairo2-dev libpango1.0-dev libssl-dev
 
       - name: Install Node.js
         uses: actions/setup-node@v4
