@@ -1,10 +1,10 @@
 name: Release Android (Beta)
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
-  # push:
-  #   tags:
-  #     - 'v*'
 
 jobs:
   release-android:
