@@ -8,8 +8,6 @@ on:
 
 jobs:
   build-windows:
-    permissions:
-      contents: write
     strategy:
       fail-fast: false
       matrix:
@@ -34,17 +32,30 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.arch == 'x86' && 'i686-pc-windows-msvc' || matrix.arch == 'aarch64' && 'aarch64-pc-windows-msvc' || 'x86_64-pc-windows-msvc' }}
+          targets: x86_64-pc-windows-msvc,i686-pc-windows-msvc,aarch64-pc-windows-msvc
 
       - name: Install dependencies
         run: |
           cd lan-windows
           npm ci
 
-      - name: Build Tauri app
+      - name: Build Tauri app (x64)
+        if: matrix.arch == 'x64'
         run: |
           cd lan-windows
-          npm run tauri build ${{ matrix.arch == 'x86' && '--target i686-pc-windows-msvc' || matrix.arch == 'aarch64' && '--target aarch64-pc-windows-msvc' || '' }}
+          npm run tauri build
+
+      - name: Build Tauri app (x86)
+        if: matrix.arch == 'x86'
+        run: |
+          cd lan-windows
+          npm run tauri build -- --target i686-pc-windows-msvc
+
+      - name: Build Tauri app (aarch64)
+        if: matrix.arch == 'aarch64'
+        run: |
+          cd lan-windows
+          npm run tauri build -- --target aarch64-pc-windows-msvc
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
