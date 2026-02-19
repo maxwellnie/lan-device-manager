@@ -1,10 +1,10 @@
 name: Release Android (Beta)
 
 on:
-  push:
-    tags:
-      - 'v*'
   workflow_dispatch:
+  # push:
+  #   tags:
+  #     - 'v*'
 
 jobs:
   release-android:
@@ -33,7 +33,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd lan-android
-          npm ci
+          npm install
 
       - name: Build Tauri app for Android
         uses: tauri-apps/tauri-action@v0
