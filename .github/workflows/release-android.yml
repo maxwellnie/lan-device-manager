@@ -1,10 +1,10 @@
 name: Build Android (Beta)
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
-  # push:
-  #   tags:
-  #     - 'v*'
 
 jobs:
   build-android:
@@ -40,10 +40,21 @@ jobs:
           cd lan-android
           npm ci
 
+      - name: List directory structure
+        run: |
+          ls -la lan-android/
+          ls -la lan-android/src-tauri/ || true
+
       - name: Build Tauri app for Android
         run: |
           cd lan-android
           npm run tauri build
+
+      - name: List build outputs
+        run: |
+          find lan-android -name "*.apk" -o -name "*.aab" 2>/dev/null || true
+          ls -la lan-android/src-tauri/gen/android/ 2>/dev/null || true
+          ls -la lan-android/src-tauri/gen/android/app/build/ 2>/dev/null || true
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -52,3 +63,5 @@ jobs:
           path: |
             lan-android/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
             lan-android/src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
+            lan-android/**/*.apk
+            lan-android/**/*.aab
