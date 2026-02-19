@@ -33,7 +33,7 @@ jobs:
       - name: Install dependencies
         run: |
           cd lan-android
-          npm install
+          npm ci
 
       - name: Build Tauri app for Android
         uses: tauri-apps/tauri-action@v0
