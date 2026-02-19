@@ -1,13 +1,13 @@
-name: Release Android (Beta)
+name: Build Android (Beta)
 
 on:
+  push:
+    tags:
+      - 'v*'
   workflow_dispatch:
-  # push:
-  #   tags:
-  #     - 'v*'
 
 jobs:
-  release-android:
+  build-android:
     runs-on: ubuntu-latest
 
     steps:
@@ -36,12 +36,14 @@ jobs:
           npm ci
 
       - name: Build Tauri app for Android
-        uses: tauri-apps/tauri-action@v0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd lan-android
+          npm run tauri build
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
-          projectPath: lan-android
-          tagName: ${{ github.ref_name }}
-          releaseName: 'LanDevice Manager ${{ github.ref_name }} (Beta)'
-          releaseDraft: true
-          prerelease: true
+          name: android
+          path: |
+            lan-android/src-tauri/gen/android/app/build/outputs/apk/**/*.apk
+            lan-android/src-tauri/gen/android/app/build/outputs/bundle/**/*.aab
